@@ -12,9 +12,9 @@
 const int AO_DETECT = A0;       // 电压检测引脚（WeMOS D1 A0）
 const int RELAY_PIN = D6;       // 继电器控制引脚（WeMOS D1 D6）
 const int VOLT_THRESHOLD = 400; // 电压阈值（根据实际调整）
-const int CHECK_INTERVAL = 200; // 检测间隔（ms）
+const int CHECK_INTERVAL = 20; // 检测间隔（ms）
 const int STABLE_CHECK = 1;     // 稳定检测次数
-const int STABLE_INTERVAL = 50; // 检测间隔（ms）
+const int STABLE_INTERVAL = 12; // 检测间隔（ms）
 
 // WiFi配网参数
 #define EEPROM_SIZE 512         // 闪存大小
@@ -329,4 +329,5 @@ void loop() {
     Serial.println("WiFi断开，尝试重连...");
     isWiFiConnected = connectWiFi();
   }
+
 }
