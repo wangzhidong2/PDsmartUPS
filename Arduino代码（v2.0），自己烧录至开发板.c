@@ -27,6 +27,7 @@ bool isWiFiConnected = false;   // WiFi连接状态
 
 // Blinker配置
 const char* auth = "您的设备密钥"; // 请在Blinker APP中获取设备密钥
+BlinkerButton Button1("relay"); // 新增：定义Blinker按钮对象，data key和APP一致
 
 // AP热点参数
 ESP8266WebServer server(80);
@@ -351,15 +352,15 @@ void setup() {
   Serial.println("===== 网页服务器启动完成 =====");
   
   // 初始化Blinker
-  if (isWiFiConnected) {
-    Blinker.begin(auth, wifiSSID.c_str(), wifiPWD.c_str());
-    Blinker.setTimezone(8.0); // 设置时区为东八区
-    Blinker.attachData(dataRead);
-    Blinker.attachButton("relay", relayControl);
-    // 关闭通讯加密以提高性能
-    Blinker.encrypt(false);
-    Serial.println("===== Blinker初始化完成 =====");
-  }
+    if (isWiFiConnected) {
+  Blinker.begin(auth, wifiSSID.c_str(), wifiPWD.c_str());
+  Blinker.setTimezone(8.0); // 设置时区为东八区
+  Blinker.attachData(dataRead);
+  Button1.attach(relayControl); // 新增：绑定按钮回调函数
+  // 新版Blinker用BlinkerButton对象，不再用attachButton
+  // 新版默认关闭加密，无需encrypt(false)
+  Serial.println("===== Blinker初始化完成 =====");
+}
 }
 
 // ====================== 主循环 ======================
@@ -384,11 +385,9 @@ void loop() {
       Blinker.begin(auth, wifiSSID.c_str(), wifiPWD.c_str());
       Blinker.setTimezone(8.0); // 设置时区为东八区
       Blinker.attachData(dataRead);
-      Blinker.attachButton("relay", relayControl);
-      // 关闭通讯加密以提高性能
-      Blinker.encrypt(false);
+      Button1.attach(relayControl); // 替换attachButton
+      // 新版默认关闭加密，无需encrypt(false)
       Serial.println("===== Blinker重新初始化完成 =====");
     }
   }
-
 }
