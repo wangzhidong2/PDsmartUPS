@@ -6,6 +6,8 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
+// 设置Blinker模式为WiFi
+#define BLINKER_WIFI
 #include <Blinker.h>
 
 // ====================== 核心配置 ======================
