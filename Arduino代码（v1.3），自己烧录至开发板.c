@@ -6,6 +6,9 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
+// 设置Blinker模式为WiFi
+#define BLINKER_WIFI
+#include <Blinker.h>
 
 // ====================== 核心配置 ======================
 // 应急补电参数
@@ -21,6 +24,9 @@ const int STABLE_INTERVAL = 12; // 检测间隔（ms）
 String wifiSSID = "";           // WiFi名称
 String wifiPWD = "";            // WiFi密码
 bool isWiFiConnected = false;   // WiFi连接状态
+
+// Blinker配置
+const char* auth = "您的设备密钥"; // 请在Blinker APP中获取设备密钥
 
 // AP热点参数
 ESP8266WebServer server(80);
@@ -101,6 +107,27 @@ void handleWiFiConnect() {
   }
 }
 
+// ====================== Blinker回调函数 ======================
+// 数据读取回调
+void dataRead(const String & data) {
+  Blinker.print("powerStatus", powerStatus);
+  Blinker.print("voltage", analogRead(AO_DETECT));
+  Blinker.print("relayState", digitalRead(RELAY_PIN));
+}
+
+// 继电器控制回调
+void relayControl(const String & state) {
+  digitalWrite(RELAY_PIN, state.toInt());
+  Blinker.print("relayState", state);
+  if (state.toInt() == HIGH) {
+    powerStatus = "手动开启应急供电";
+    statusColor = "#FF5733";
+  } else {
+    powerStatus = "手动关闭应急供电";
+    statusColor = "#33CC33";
+  }
+}
+
 // ====================== 应急补电函数 ======================
 void checkPowerAndControlRelay() {
   int lowVoltCount = 0;
@@ -115,12 +142,20 @@ void checkPowerAndControlRelay() {
     powerStatus = "市电断电，应急供电中";
     statusColor = "#FF5733"; // 橙色（应急）
     Serial.println(">>> 已接通应急供电 <<<");
+    // 向Blinker发送通知
+    Blinker.notify("市电断电，已自动开启应急供电");
   } else {
     digitalWrite(RELAY_PIN, LOW);
     powerStatus = "市电正常，原装电源供电";
     statusColor = "#33CC33"; // 绿色（正常）
     Serial.println(">>> 已断开应急供电 <<<");
   }
+  
+  // 向Blinker上传数据
+  Blinker.print("powerStatus", powerStatus);
+  Blinker.print("voltage", analogValue);
+  Blinker.print("relayState", digitalRead(RELAY_PIN));
+  
   Serial.println("----------------------------------------");
 }
 
@@ -314,6 +349,17 @@ void setup() {
   server.on("/wifi/connect", handleWiFiConnect);
   server.begin();
   Serial.println("===== 网页服务器启动完成 =====");
+  
+  // 初始化Blinker
+  if (isWiFiConnected) {
+    Blinker.begin(auth, wifiSSID.c_str(), wifiPWD.c_str());
+    Blinker.setTimezone(8.0); // 设置时区为东八区
+    Blinker.attachData(dataRead);
+    Blinker.attachButton("relay", relayControl);
+    // 关闭通讯加密以提高性能
+    Blinker.encrypt(false);
+    Serial.println("===== Blinker初始化完成 =====");
+  }
 }
 
 // ====================== 主循环 ======================
@@ -324,11 +370,25 @@ void loop() {
   }
   server.handleClient();
 
+  // 运行Blinker
+  if (isWiFiConnected) {
+    Blinker.run();
+  }
+
   // WiFi断开重连
   if (isWiFiConnected && WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi断开，尝试重连...");
     isWiFiConnected = connectWiFi();
+    // 重连成功后重新初始化Blinker
+    if (isWiFiConnected) {
+      Blinker.begin(auth, wifiSSID.c_str(), wifiPWD.c_str());
+      Blinker.setTimezone(8.0); // 设置时区为东八区
+      Blinker.attachData(dataRead);
+      Blinker.attachButton("relay", relayControl);
+      // 关闭通讯加密以提高性能
+      Blinker.encrypt(false);
+      Serial.println("===== Blinker重新初始化完成 =====");
+    }
   }
 
 }
-
