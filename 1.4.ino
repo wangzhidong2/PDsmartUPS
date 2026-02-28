@@ -1,21 +1,19 @@
 /*
-  beta版，未测试
-  what's new
-  新增时间同步，可在web管理界面显示时间
+  esp8266停止支持，最后一版
+  更新日志：日志
   路由器应急补电系统（WiFi配网版）
-  适配硬件：WeMOS D1R32 (ESP32)
-  功能：1. 应急补电（电压检测+继电器控制）；2. Win11风格UI（侧边栏+浅色卡片）；3. 手机式WiFi配网  
+  适配硬件：WeMOS D1 (ESP8266-12F)
+  功能：1. 应急补电（电压检测+继电器控制）；2. Win11风格UI（侧边栏+浅色卡片）；3. 手机式WiFi配网   4.日志与时间
 */
-#include <WiFi.h>
-#include <WebServer.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #include <EEPROM.h>
-#include <WiFiUdp.h>
-#include <NTPClient.h>
+#include <time.h>
 
 // ====================== 核心配置 ======================
 // 应急补电参数
-const int AO_DETECT = 34;       // 电压检测引脚
-const int RELAY_PIN = 4;       // 继电器控制引脚
+const int AO_DETECT = A0;       // 电压检测引脚（WeMOS D1 A0）
+const int RELAY_PIN = D6;       // 继电器控制引脚（WeMOS D1 D6）
 const int VOLT_THRESHOLD = 400; // 电压阈值（根据实际调整）
 const int CHECK_INTERVAL = 20; // 检测间隔（ms）
 const int STABLE_CHECK = 1;     // 稳定检测次数
@@ -28,39 +26,33 @@ String wifiPWD = "";            // WiFi密码
 bool isWiFiConnected = false;   // WiFi连接状态
 
 // AP热点参数
-WebServer server(80);
+ESP8266WebServer server(80);
 const char* AP_SSID = "smartUPS";
 const char* AP_PASS = "12345678";
 
-// NTP配置
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "ntp.aliyun.com", 8 * 3600, 3600000); // 东八区，1小时更新一次
+// 时间同步配置
+String currentTime = "--:--";
+
+// 日志配置
+#define MAX_LOG_ENTRIES 10
+struct LogEntry {
+  char timestamp[6];  // HH:MM格式
+  char level[6];      // INFO/ERROR
+  char message[64];   // 日志内容
+};
+LogEntry logBuffer[MAX_LOG_ENTRIES];
+int logCount = 0;
+const char* SERVER_IP = "192.168.5.11"; // Flask服务器IP
+const int SERVER_PORT = 5000;            // Flask服务器端口
+unsigned long lastLogSendTime = 0;
+const long LOG_SEND_INTERVAL = 30000;    // 30秒发送一次日志
 
 // 状态变量
 String powerStatus = "未知";
 String statusColor = "#666666";
 unsigned long lastCheckTime = 0;
-
-// ====================== 时间同步函数 ======================
-// 获取当前时间
-String getCurrentTime() {
-  if (isWiFiConnected) {
-    timeClient.update();
-    unsigned long epochTime = timeClient.getEpochTime();
-    struct tm *ptm = gmtime ((time_t *)&epochTime);
-    
-    char timeString[30];
-    sprintf(timeString, "%04d-%02d-%02d %02d:%02d", 
-            ptm->tm_year + 1900, 
-            ptm->tm_mon + 1, 
-            ptm->tm_mday, 
-            ptm->tm_hour, 
-            ptm->tm_min);
-    return String(timeString);
-  } else {
-    return "时间未同步";
-  }
-}
+unsigned long lastSyncTime = 0;
+const long SYNC_INTERVAL = 3600000; // 1小时同步一次
 
 // ====================== WiFi配网函数 ======================
 String scanWiFiList() {
@@ -124,15 +116,54 @@ void handleWiFiConnect() {
     wifiSSID = server.arg("ssid");
     wifiPWD = server.arg("pwd");
     isWiFiConnected = connectWiFi();
-    if (isWiFiConnected) {
-      saveWiFiToEEPROM();
-      timeClient.begin();
-      timeClient.update();
-      Serial.println("NTP客户端初始化成功");
-    }
+    if (isWiFiConnected) saveWiFiToEEPROM();
     server.send(200, "text/plain", isWiFiConnected ? "连接成功" : "连接失败");
   } else {
     server.send(400, "text/plain", "参数错误");
+  }
+}
+
+// ====================== 日志函数 ======================
+void addLog(const char* level, const char* message) {
+  if (logCount < MAX_LOG_ENTRIES) {
+    strncpy(logBuffer[logCount].timestamp, currentTime.c_str(), 5);
+    strncpy(logBuffer[logCount].level, level, 5);
+    strncpy(logBuffer[logCount].message, message, 63);
+    logCount++;
+  }
+}
+
+void sendLogs() {
+  if (logCount == 0 || !isWiFiConnected) return;
+  
+  WiFiClient client;
+  if (client.connect(SERVER_IP, SERVER_PORT)) {
+    String json = "{\"logs\":[";
+    for (int i = 0; i < logCount; i++) {
+      if (i > 0) json += ",";
+      json += "{\"time\":\"" + String(logBuffer[i].timestamp) + "\",";
+      json += "\"level\":\"" + String(logBuffer[i].level) + "\",";
+      json += "\"message\":\"" + String(logBuffer[i].message) + "\"}";
+    }
+    json += "]}";
+    
+    client.print("POST /api/logs HTTP/1.1\r\n");
+    client.print("Host: " + String(SERVER_IP) + "\r\n");
+    client.print("Content-Type: application/json\r\n");
+    client.print("Content-Length: " + String(json.length()) + "\r\n");
+    client.print("\r\n");
+    client.print(json);
+    
+    unsigned long timeout = millis();
+    while (client.available() == 0) {
+      if (millis() - timeout > 3000) {
+        client.stop();
+        return;
+      }
+    }
+    
+    client.stop();
+    logCount = 0;
   }
 }
 
@@ -150,11 +181,13 @@ void checkPowerAndControlRelay() {
     powerStatus = "市电断电，应急供电中";
     statusColor = "#FF5733"; // 橙色（应急）
     Serial.println(">>> 已接通应急供电 <<<");
+    addLog("INFO", "市电断电，应急供电中");
   } else {
     digitalWrite(RELAY_PIN, LOW);
     powerStatus = "市电正常，原装电源供电";
     statusColor = "#33CC33"; // 绿色（正常）
     Serial.println(">>> 已断开应急供电 <<<");
+    addLog("INFO", "市电正常，原装电源供电");
   }
   Serial.println("----------------------------------------");
 }
@@ -216,18 +249,19 @@ void handleRoot() {
   html += "<div class='sidebar-icon'>📶</div>";
   html += "<div>WiFi设置</div>";
   html += "</a>";
+  html += "<a href='http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "' class='sidebar-item' target='_blank'>";
+  html += "<div class='sidebar-icon'>📋</div>";
+  html += "<div>查看日志</div>";
+  html += "</a>";
   html += "</div>";
   html += "<div class='main-content'>";
   html += "<div id='home' class='page active'>";
-  html += "<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;'>";
-  html += "<h1 style='color: #111827;'>智能UPS监控中心</h1>";
-  html += "<div style='font-size: 20px; font-weight: bold; color: #0078D4; background: #EFF6FF; padding: 10px 20px; border-radius: 8px;'>" + getCurrentTime() + "</div>";
-  html += "</div>";
+  html += "<h1 style='margin-bottom: 30px; color: #111827;'>智能UPS监控中心</h1>";
   html += "<div class='power-status-box' style='background-color: " + statusColor + "'>" + powerStatus + "</div>";
   html += "<div class='card'>";
   html += "<div class='card-title'>";
   html += "<span>系统状态</span>";
-  html += "<span style='font-size:14px; color:#666;'>最后更新：" + String(millis()/1000) + "</span>";
+  html += "<span style='font-size:24px; font-weight:600; color:#0078D4;'>" + currentTime + "</span>";
   html += "</div>";
   html += "<div style='line-height:1.8; color:#4B5563;'>";
   html += "<div>检测间隔：" + String(CHECK_INTERVAL) + "ms</div>";
@@ -345,10 +379,6 @@ void setup() {
     Serial.println("\n===== WiFi连接成功 =====");
     Serial.print("访问地址：");
     Serial.println(WiFi.localIP());
-    // 初始化NTP客户端
-    timeClient.begin();
-    timeClient.update();
-    Serial.println("NTP客户端初始化成功");
   }
 
   // 启动网页服务器
@@ -366,6 +396,29 @@ void loop() {
   }
   server.handleClient();
 
+  // NTP时间同步（仅当WiFi连接时）
+  if (isWiFiConnected && WiFi.status() == WL_CONNECTED) {
+    if (millis() - lastSyncTime >= SYNC_INTERVAL || lastSyncTime == 0) {
+      configTime(8 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+      lastSyncTime = millis();
+      Serial.println("NTP时间同步完成");
+    }
+    // 格式化时间为HH:MM
+    time_t now = time(nullptr);
+    struct tm *tm_info = localtime(&now);
+    if (tm_info != nullptr) {
+      char timeBuffer[6];
+      strftime(timeBuffer, sizeof(timeBuffer), "%H:%M", tm_info);
+      currentTime = String(timeBuffer);
+    }
+  }
+
+  // 发送日志到服务器
+  if (millis() - lastLogSendTime >= LOG_SEND_INTERVAL) {
+    sendLogs();
+    lastLogSendTime = millis();
+  }
+
   // WiFi断开重连
   if (isWiFiConnected && WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi断开，尝试重连...");
@@ -373,7 +426,3 @@ void loop() {
   }
 
 }
-
-
-
-
