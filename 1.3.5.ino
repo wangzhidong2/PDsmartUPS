@@ -1,7 +1,7 @@
 /*
   路由器应急补电系统（WiFi配网版）
   适配硬件：WeMOS D1 (ESP8266-12F)
-  功能：1. 应急补电（电压检测+继电器控制）；2. Win11风格UI（侧边栏+浅色卡片）；3. 手机式WiFi配网
+  功能：1. 应急补电（电压检测+继电器控制）；2. Win11风格UI（侧边栏+浅色卡片）；3. 手机式WiFi配网 4.新增实时显示时间
 */
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
@@ -352,5 +352,6 @@ void loop() {
     Serial.println("WiFi断开，尝试重连...");
     isWiFiConnected = connectWiFi();
   }
+
 
 }
