@@ -333,7 +333,7 @@ void loop() {
   // NTP时间同步（仅当WiFi连接时）
   if (isWiFiConnected && WiFi.status() == WL_CONNECTED) {
     if (millis() - lastSyncTime >= SYNC_INTERVAL || lastSyncTime == 0) {
-      configTime(8 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+      configTime(8 * 3600, 0, "ntp.aliyun.com", "time.windows.com");
       lastSyncTime = millis();
       Serial.println("NTP时间同步完成");
     }
@@ -355,3 +355,4 @@ void loop() {
 
 
 }
+
