@@ -1,8 +1,7 @@
 /*
   路由器应急补电系统（WiFi配网版）
-  适配硬件：WEMODSD1R32 (ESP32)
-  44行IP改为自己电脑的（与ups同一个局域网）
-  功能：1. 应急补电（电压检测+继电器控制）；2. Win11风格UI（侧边栏+浅色卡片）；3. 手机式WiFi配网   4.日志
+  适配硬件：WEMODSD1R32 (ESP32)（43行ip改为自己电脑的，电脑与UPS同一个局域网）
+  功能：1. 应急补电（电压检测+继电器控制）；2. Win11风格UI（侧边栏+浅色卡片）；3. 手机式WiFi配网
 */
 #include <WiFi.h>
 #include <WebServer.h>
@@ -168,27 +167,29 @@ void sendLogs() {
 
 // ====================== 应急补电函数 ======================
 void checkPowerAndControlRelay() {
-  int lowVoltCount = 0;
+  static bool lastState = false; // 记录上一次状态
   int analogValue = analogRead(AO_DETECT);
-  Serial.print("电压检测值:");
-  Serial.println(analogValue);
-  if (analogValue < VOLT_THRESHOLD) lowVoltCount++;
-  delay(STABLE_INTERVAL);
   
-  if (lowVoltCount >= STABLE_CHECK) {
-    digitalWrite(RELAY_PIN, HIGH);
-    powerStatus = "市电断电，应急供电中";
-    statusColor = "#FF5733"; // 橙色（应急）
-    Serial.println(">>> 已接通应急供电 <<<");
-    addLog("INFO", "市电断电，应急供电中");
-  } else {
-    digitalWrite(RELAY_PIN, LOW);
-    powerStatus = "市电正常，原装电源供电";
-    statusColor = "#33CC33"; // 绿色（正常）
-    Serial.println(">>> 已断开应急供电 <<<");
-    addLog("INFO", "市电正常，原装电源供电");
+  bool powerLost = (analogValue < VOLT_THRESHOLD);
+  
+  // 只在状态改变时输出日志，不疯狂刷屏
+  if (powerLost != lastState) {
+    lastState = powerLost;
+    if (powerLost) {
+      digitalWrite(RELAY_PIN, HIGH);
+      powerStatus = "市电断电，应急供电中";
+      statusColor = "#FF5733"; // 橙色（应急）
+      Serial.println(">>> 已接通应急供电 <<<");
+      addLog("INFO", "市电断电，应急供电中");
+    } else {
+      digitalWrite(RELAY_PIN, LOW);
+      powerStatus = "市电正常，原装电源供电";
+      statusColor = "#33CC33"; // 绿色（正常）
+      Serial.println(">>> 已断开应急供电 <<<");
+      addLog("INFO", "市电正常，原装电源供电");
+    }
+    Serial.println("----------------------------------------");
   }
-  Serial.println("----------------------------------------");
 }
 
 // ====================== Win11风格UI网页 ======================
