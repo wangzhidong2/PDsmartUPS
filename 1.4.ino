@@ -1,19 +1,18 @@
 /*
-  esp8266停止支持，最后一版
-  更新日志：日志
   路由器应急补电系统（WiFi配网版）
-  适配硬件：WeMOS D1 (ESP8266-12F)
-  功能：1. 应急补电（电压检测+继电器控制）；2. Win11风格UI（侧边栏+浅色卡片）；3. 手机式WiFi配网   4.日志与时间
+  适配硬件：WEMODSD1R32 (ESP32)
+  44行IP改为自己电脑的（与ups同一个局域网）
+  功能：1. 应急补电（电压检测+继电器控制）；2. Win11风格UI（侧边栏+浅色卡片）；3. 手机式WiFi配网   4.日志
 */
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
+#include <WiFi.h>
+#include <WebServer.h>
 #include <EEPROM.h>
 #include <time.h>
 
 // ====================== 核心配置 ======================
 // 应急补电参数
-const int AO_DETECT = A0;       // 电压检测引脚（WeMOS D1 A0）
-const int RELAY_PIN = D6;       // 继电器控制引脚（WeMOS D1 D6）
+const int AO_DETECT = 34;       // 电压检测引脚（WEMODSD1R32 GPIO36）
+const int RELAY_PIN = 4;       // 继电器控制引脚（WEMODSD1R32 GPIO26）
 const int VOLT_THRESHOLD = 400; // 电压阈值（根据实际调整）
 const int CHECK_INTERVAL = 20; // 检测间隔（ms）
 const int STABLE_CHECK = 1;     // 稳定检测次数
@@ -26,7 +25,7 @@ String wifiPWD = "";            // WiFi密码
 bool isWiFiConnected = false;   // WiFi连接状态
 
 // AP热点参数
-ESP8266WebServer server(80);
+WebServer server(80);
 const char* AP_SSID = "smartUPS";
 const char* AP_PASS = "12345678";
 
