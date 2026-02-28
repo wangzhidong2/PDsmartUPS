@@ -1,30 +1,30 @@
 /*
   路由器应急补电系统（WiFi配网版）
-  适配硬件：WEMODSD1R32 (ESP32)（43行ip改为自己电脑的，电脑与UPS同一个局域网）
+  适配硬件：ESP8266
   功能：1. 应急补电（电压检测+继电器控制）；2. Win11风格UI（侧边栏+浅色卡片）；3. 手机式WiFi配网
 */
-#include <WiFi.h>
-#include <WebServer.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #include <EEPROM.h>
 #include <time.h>
 
 // ====================== 核心配置 ======================
 // 应急补电参数
-const int AO_DETECT = 34;       // 电压检测引脚（WEMODSD1R32 GPIO36）
-const int RELAY_PIN = 4;       // 继电器控制引脚（WEMODSD1R32 GPIO26）
+const int AO_DETECT = A0;       // 电压检测引脚（ESP8266 A0）
+const int RELAY_PIN = 12;       // 继电器控制引脚（ESP8266 D6/GPIO12）
 const int VOLT_THRESHOLD = 400; // 电压阈值（根据实际调整）
 const int CHECK_INTERVAL = 20; // 检测间隔（ms）
 const int STABLE_CHECK = 1;     // 稳定检测次数
 const int STABLE_INTERVAL = 12; // 检测间隔（ms）
 
 // WiFi配网参数
-#define EEPROM_SIZE 512         // 闪存大小
+#define EEPROM_SIZE 512         // 闪存大小（ESP8266兼容）
 String wifiSSID = "";           // WiFi名称
 String wifiPWD = "";            // WiFi密码
 bool isWiFiConnected = false;   // WiFi连接状态
 
 // AP热点参数
-WebServer server(80);
+ESP8266WebServer server(80);
 const char* AP_SSID = "smartUPS";
 const char* AP_PASS = "12345678";
 
@@ -75,19 +75,19 @@ void saveWiFiToEEPROM() {
   EEPROM.begin(EEPROM_SIZE);
   for (int i = 0; i < EEPROM_SIZE; i++) EEPROM.write(i, 0);
   for (int i = 0; i < wifiSSID.length(); i++) EEPROM.write(i, wifiSSID[i]);
-  EEPROM.write(200, wifiSSID.length());
-  for (int i = 0; i < wifiPWD.length(); i++) EEPROM.write(201 + i, wifiPWD[i]);
-  EEPROM.write(400, wifiPWD.length());
+  EEPROM.write(100, wifiSSID.length());
+  for (int i = 0; i < wifiPWD.length(); i++) EEPROM.write(101 + i, wifiPWD[i]);
+  EEPROM.write(200, wifiPWD.length());
   EEPROM.commit();
   EEPROM.end();
 }
 
 void readWiFiFromEEPROM() {
   EEPROM.begin(EEPROM_SIZE);
-  int ssidLen = EEPROM.read(200);
+  int ssidLen = EEPROM.read(100);
   for (int i = 0; i < ssidLen; i++) wifiSSID += char(EEPROM.read(i));
-  int pwdLen = EEPROM.read(400);
-  for (int i = 0; i < pwdLen; i++) wifiPWD += char(EEPROM.read(201 + i));
+  int pwdLen = EEPROM.read(200);
+  for (int i = 0; i < pwdLen; i++) wifiPWD += char(EEPROM.read(101 + i));
   EEPROM.end();
 }
 
@@ -167,29 +167,27 @@ void sendLogs() {
 
 // ====================== 应急补电函数 ======================
 void checkPowerAndControlRelay() {
-  static bool lastState = false; // 记录上一次状态
+  int lowVoltCount = 0;
   int analogValue = analogRead(AO_DETECT);
+  Serial.print("电压检测值:");
+  Serial.println(analogValue);
+  if (analogValue < VOLT_THRESHOLD) lowVoltCount++;
+  delay(STABLE_INTERVAL);
   
-  bool powerLost = (analogValue < VOLT_THRESHOLD);
-  
-  // 只在状态改变时输出日志，不疯狂刷屏
-  if (powerLost != lastState) {
-    lastState = powerLost;
-    if (powerLost) {
-      digitalWrite(RELAY_PIN, HIGH);
-      powerStatus = "市电断电，应急供电中";
-      statusColor = "#FF5733"; // 橙色（应急）
-      Serial.println(">>> 已接通应急供电 <<<");
-      addLog("INFO", "市电断电，应急供电中");
-    } else {
-      digitalWrite(RELAY_PIN, LOW);
-      powerStatus = "市电正常，原装电源供电";
-      statusColor = "#33CC33"; // 绿色（正常）
-      Serial.println(">>> 已断开应急供电 <<<");
-      addLog("INFO", "市电正常，原装电源供电");
-    }
-    Serial.println("----------------------------------------");
+  if (lowVoltCount >= STABLE_CHECK) {
+    digitalWrite(RELAY_PIN, HIGH);
+    powerStatus = "市电断电，应急供电中";
+    statusColor = "#FF5733"; // 橙色（应急）
+    Serial.println(">>> 已接通应急供电 <<<");
+    addLog("INFO", "市电断电，应急供电中");
+  } else {
+    digitalWrite(RELAY_PIN, LOW);
+    powerStatus = "市电正常，原装电源供电";
+    statusColor = "#33CC33"; // 绿色（正常）
+    Serial.println(">>> 已断开应急供电 <<<");
+    addLog("INFO", "市电正常，原装电源供电");
   }
+  Serial.println("----------------------------------------");
 }
 
 // ====================== Win11风格UI网页 ======================
@@ -366,8 +364,8 @@ void setup() {
   }
 
   // 启动AP热点
-  WiFi.mode(isWiFiConnected ? WIFI_STA : WIFI_AP);
   if (!isWiFiConnected) {
+    WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(IPAddress(192,168,4,1), IPAddress(192,168,4,1), IPAddress(255,255,255,0));
     WiFi.softAP(AP_SSID, AP_PASS);
     Serial.println("\n===== AP热点启动成功 =====");
@@ -376,6 +374,7 @@ void setup() {
     Serial.print("访问地址：");
     Serial.println(WiFi.softAPIP());
   } else {
+    WiFi.mode(WIFI_STA);
     Serial.println("\n===== WiFi连接成功 =====");
     Serial.print("访问地址：");
     Serial.println(WiFi.localIP());
