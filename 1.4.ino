@@ -352,6 +352,12 @@ void setup() {
   Serial.begin(9600);
   delay(1000);
   pinMode(AO_DETECT, INPUT);
+  // ADC 衰减配置（ESP32 专用，WeMos D1 R32 必须加）
+// 功能：设置 GPIO34 引脚的 ADC 测量量程
+// ADC_11db：官方固定对应量程 = 0 ~ 3.3V
+// 适用场景：测量经过电阻分压后的路由器电源电压（0~3.3V）
+// 不设置后果：默认只能测 0~1.1V，超过就读数不准、继电器乱触发
+  analogSetPinAttenuation(AO_DETECT, ADC_11db);
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, LOW);
   Serial.println("===== 应急补电模块初始化完成 =====");
@@ -425,6 +431,7 @@ void loop() {
   }
 
 }
+
 
 
 
