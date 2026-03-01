@@ -173,7 +173,7 @@ void checkPowerAndControlRelay() {
   Serial.print("电压检测值:");
   Serial.println(analogValue);
   if (analogValue < VOLT_THRESHOLD) lowVoltCount++;
-  delay(STABLE_INTERVAL);
+
   
   if (lowVoltCount >= STABLE_CHECK) {
     digitalWrite(RELAY_PIN, HIGH);
@@ -425,5 +425,6 @@ void loop() {
   }
 
 }
+
 
 
