@@ -11,9 +11,9 @@
 
 // ====================== 核心配置 ======================
 // 应急补电参数
-const int AO_DETECT = 34;       // 电压检测引脚（WEMODSD1R32 GPIO36）
-const int RELAY_PIN = 4;       // 继电器控制引脚（WEMODSD1R32 GPIO26）
-const int VOLT_THRESHOLD = 400; // 电压阈值（根据实际调整）
+const int AO_DETECT = 34;       // 电压检测引脚（WEMODSD1R32 GPIO34）
+const int RELAY_PIN = 4;       // 继电器控制引脚（WEMODSD1R32 GPIO4）
+const int VOLT_THRESHOLD = 1200; // 电压阈值（根据实际调整）
 const int CHECK_INTERVAL = 20; // 检测间隔（ms）
 const int STABLE_CHECK = 1;     // 稳定检测次数
 const int STABLE_INTERVAL = 12; // 检测间隔（ms）
@@ -425,3 +425,4 @@ void loop() {
   }
 
 }
+
