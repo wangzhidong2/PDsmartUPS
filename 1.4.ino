@@ -94,7 +94,6 @@ void readWiFiFromEEPROM() {
 
 bool connectWiFi() {
   if (wifiSSID == "" || wifiPWD == "") return false;
-  WiFi.mode(WIFI_STA);
   WiFi.begin(wifiSSID.c_str(), wifiPWD.c_str());
   int retry = 0;
   while (WiFi.status() != WL_CONNECTED && retry < 20) {
@@ -371,7 +370,7 @@ void setup() {
   }
 
   // 启动AP热点
-  WiFi.mode(isWiFiConnected ? WIFI_STA : WIFI_AP);
+  WiFi.mode(WIFI_AP_STA);
   if (!isWiFiConnected) {
     WiFi.softAPConfig(IPAddress(192,168,4,1), IPAddress(192,168,4,1), IPAddress(255,255,255,0));
     WiFi.softAP(AP_SSID, AP_PASS);
@@ -428,9 +427,11 @@ void loop() {
   if (isWiFiConnected && WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi断开，尝试重连...");
     isWiFiConnected = connectWiFi();
+    WiFi.mode(WIFI_AP_STA);
   }
 
 }
+
 
 
 
