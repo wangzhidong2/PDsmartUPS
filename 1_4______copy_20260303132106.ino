@@ -588,6 +588,7 @@ void setup() {
   server.on("/", handleRoot); // 根路径请求处理
   server.on("/wifi/connect", handleWiFiConnect); // WiFi连接请求处理
   server.on("/api/power-status", handlePowerStatus); // 供电状态API
+  server.on("/api/logserver/config", handleLogServerConfig); // 日志服务器配置API
   server.begin(); // 启动Web服务器
   Serial.println("===== 网页服务器启动完成 =====");
 }
