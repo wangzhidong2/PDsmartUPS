@@ -1,0 +1,287 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPS日志监控</title>
+    <style>
+        :root {
+            --primary-color: #0078D4;
+            --secondary-color: #f3f4f6;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --info-color: #3b82f6;
+            --card-bg: #ffffff;
+            --sidebar-bg: #f9fafb;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .app-header h1 {
+            color: var(--text-color);
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .content-layout {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background-color: var(--sidebar-bg);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar-section {
+            margin-bottom: 24px;
+        }
+        
+        .sidebar-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 12px;
+        }
+        
+        .sidebar-info {
+            background-color: var(--card-bg);
+            border-radius: 6px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .info-item {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .info-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            color: var(--text-color);
+        }
+        
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background-color: #005a9e;
+        }
+        
+        .btn:active {
+            background-color: #004578;
+        }
+        
+        .main-content {
+            flex: 1;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+        
+        .log-container {
+            margin-top: 20px;
+        }
+        
+        .log-item {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .log-item:last-child {
+            border-bottom: none;
+        }
+        
+        .log-time {
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+            min-width: 150px;
+        }
+        
+        .log-level {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 12px;
+            min-width: 70px;
+            text-align: center;
+        }
+        
+        .log-level.INFO {
+            background-color: #e0f2fe;
+            color: #0284c7;
+        }
+        
+        .log-level.ERROR {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .log-level.WARNING {
+            background-color: #fef3c7;
+            color: #d97706;
+        }
+        
+        .log-message {
+            flex: 1;
+            font-size: 14px;
+            color: var(--text-color);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        @media (max-width: 768px) {
+            .content-layout {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="app-header">
+            <h1>UPS系统日志监控</h1>
+        </div>
+        
+        <div class="content-layout">
+            <div class="sidebar">
+                <div class="sidebar-section">
+                    <h3>服务器信息</h3>
+                    <div class="sidebar-info">
+                        <div class="info-item">
+                            <span class="info-label">主机:</span>
+                            <span class="info-value">0.0.0.0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">端口:</span>
+                            <span class="info-value">8080</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">访问地址:</span>
+                            <span class="info-value">http://0.0.0.0:8080</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="sidebar-section">
+                    <h3>操作</h3>
+                    <div class="action-buttons">
+                        <button class="btn" onclick="location.reload()">刷新日志</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">系统日志</h2>
+                    </div>
+                    
+                    <div class="log-container">
+                        {% if logs %}
+                            {% for log in logs %}
+                            <div class="log-item">
+                                <span class="log-time">{{ log.time }}</span>
+                                <span class="log-level {{ log.level }}">{{ log.level }}</span>
+                                <span class="log-message">{{ log.message }}</span>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📋</div>
+                                <p>暂无日志数据</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+    

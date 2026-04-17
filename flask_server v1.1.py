@@ -2,10 +2,19 @@ from flask import Flask, request, render_template, jsonify
 import json
 import os
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                           QLabel, QTextEdit, QPushButton, QHBoxLayout)
-from PyQt5.QtCore import QThread, pyqtSignal, Qt
 import threading
+
+# 尝试导入PyQt5，如果失败则只运行Flask部分
+HAS_PYQT5 = False
+try:
+    from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                               QLabel, QTextEdit, QPushButton, QHBoxLayout, QFrame, 
+                               QToolBar, QAction, QSizePolicy, QSplitter)
+    from PyQt5.QtCore import QThread, pyqtSignal, Qt, QSize
+    from PyQt5.QtGui import QIcon, QFont, QColor
+    HAS_PYQT5 = True
+except ImportError:
+    print("PyQt5 not available, running in Flask-only mode")
 
 app = Flask(__name__)
 
@@ -13,9 +22,7 @@ app = Flask(__name__)
 LOG_FILE = 'logs.json'
 
 # Flask服务器线程
-class FlaskThread(QThread):
-    log_updated = pyqtSignal(str)
-    
+class FlaskThread(threading.Thread):
     def __init__(self):
         super().__init__()
         self.host = '0.0.0.0'
@@ -43,53 +50,206 @@ def save_logs(logs):
         json.dump(logs, f, indent=2, ensure_ascii=False)
 
 # 主窗口
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle('UPS日志监控服务器')
-        self.setGeometry(100, 100, 800, 600)
-        
-        # 中央部件
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        layout = QVBoxLayout(central_widget)
-        
-        # 服务器信息
-        info_layout = QHBoxLayout()
-        self.host_label = QLabel(f'主机: 0.0.0.0')
-        self.port_label = QLabel(f'端口: 8080')
-        self.url_label = QLabel(f'访问地址: http://0.0.0.0:8080')
-        info_layout.addWidget(self.host_label)
-        info_layout.addWidget(self.port_label)
-        info_layout.addWidget(self.url_label)
-        layout.addLayout(info_layout)
-        
-        # 日志显示
-        self.log_text = QTextEdit()
-        self.log_text.setReadOnly(True)
-        self.log_text.setPlaceholderText('日志将显示在这里...')
-        layout.addWidget(self.log_text)
-        
-        # 按钮
-        btn_layout = QHBoxLayout()
-        self.refresh_btn = QPushButton('刷新日志')
-        self.refresh_btn.clicked.connect(self.refresh_logs)
-        btn_layout.addWidget(self.refresh_btn)
-        layout.addLayout(btn_layout)
-        
-        # 启动Flask服务器
-        self.flask_thread = FlaskThread()
-        self.flask_thread.start()
-        
-        # 初始刷新日志
-        self.refresh_logs()
-        
-    def refresh_logs(self):
-        logs = read_logs()
-        logs.reverse()
-        self.log_text.clear()
-        for log in logs:
-            self.log_text.append(f"[{log['time']}] [{log['level']}] {log['message']}")
+if HAS_PYQT5:
+    class MainWindow(QMainWindow):
+        def __init__(self):
+            super().__init__()
+            self.setWindowTitle('UPS日志监控服务器')
+            self.setGeometry(100, 100, 1000, 700)
+            
+            # 设置窗口风格
+            self.setStyleSheet('''
+                QMainWindow {
+                    background-color: #f3f4f6;
+                }
+                QFrame {
+                    background-color: white;
+                    border-radius: 8px;
+                    border: 1px solid #e5e7eb;
+                }
+                QLabel {
+                    color: #1f2937;
+                    font-family: 'Segoe UI', sans-serif;
+                }
+                QPushButton {
+                    background-color: #0078d4;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 6px 12px;
+                    font-family: 'Segoe UI', sans-serif;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #005a9e;
+                }
+                QPushButton:pressed {
+                    background-color: #004578;
+                }
+                QTextEdit {
+                    background-color: white;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 4px;
+                    font-family: 'Consolas', monospace;
+                    font-size: 13px;
+                }
+                QToolBar {
+                    background-color: #f9fafb;
+                    border: none;
+                    spacing: 8px;
+                }
+                QAction {
+                    padding: 8px;
+                }
+                QAction:hover {
+                    background-color: #e5e7eb;
+                    border-radius: 4px;
+                }
+            ''')
+            
+            # 中央部件
+            central_widget = QWidget()
+            self.setCentralWidget(central_widget)
+            main_layout = QHBoxLayout(central_widget)
+            main_layout.setContentsMargins(16, 16, 16, 16)
+            main_layout.setSpacing(16)
+            
+            # 侧边栏
+            self.sidebar = QFrame()
+            self.sidebar.setMinimumWidth(200)
+            self.sidebar.setMaximumWidth(250)
+            sidebar_layout = QVBoxLayout(self.sidebar)
+            sidebar_layout.setContentsMargins(16, 16, 16, 16)
+            sidebar_layout.setSpacing(12)
+            
+            # 侧边栏标题
+            sidebar_title = QLabel('UPS监控')
+            sidebar_title.setFont(QFont('Segoe UI', 16, QFont.Bold))
+            sidebar_title.setStyleSheet('color: #1f2937;')
+            sidebar_layout.addWidget(sidebar_title)
+            
+            # 服务器信息
+            info_group = QFrame()
+            info_layout = QVBoxLayout(info_group)
+            info_layout.setContentsMargins(12, 12, 12, 12)
+            
+            server_label = QLabel('服务器信息')
+            server_label.setFont(QFont('Segoe UI', 12, QFont.Medium))
+            server_label.setStyleSheet('color: #4b5563; margin-bottom: 8px;')
+            info_layout.addWidget(server_label)
+            
+            self.host_label = QLabel(f'主机: 0.0.0.0')
+            self.host_label.setFont(QFont('Segoe UI', 11))
+            info_layout.addWidget(self.host_label)
+            
+            self.port_label = QLabel(f'端口: 8080')
+            self.port_label.setFont(QFont('Segoe UI', 11))
+            info_layout.addWidget(self.port_label)
+            
+            self.url_label = QLabel(f'访问地址: http://0.0.0.0:8080')
+            self.url_label.setFont(QFont('Segoe UI', 11))
+            self.url_label.setWordWrap(True)
+            info_layout.addWidget(self.url_label)
+            
+            sidebar_layout.addWidget(info_group)
+            
+            # 操作按钮
+            action_group = QFrame()
+            action_layout = QVBoxLayout(action_group)
+            action_layout.setContentsMargins(12, 12, 12, 12)
+            action_layout.setSpacing(8)
+            
+            action_label = QLabel('操作')
+            action_label.setFont(QFont('Segoe UI', 12, QFont.Medium))
+            action_label.setStyleSheet('color: #4b5563; margin-bottom: 8px;')
+            action_layout.addWidget(action_label)
+            
+            self.refresh_btn = QPushButton('刷新日志')
+            self.refresh_btn.clicked.connect(self.refresh_logs)
+            action_layout.addWidget(self.refresh_btn)
+            
+            sidebar_layout.addWidget(action_group)
+            
+            # 填充空间
+            sidebar_layout.addStretch()
+            
+            # 主内容区域
+            self.main_content = QFrame()
+            content_layout = QVBoxLayout(self.main_content)
+            content_layout.setContentsMargins(16, 16, 16, 16)
+            content_layout.setSpacing(12)
+            
+            # 标题栏
+            title_layout = QHBoxLayout()
+            title = QLabel('系统日志')
+            title.setFont(QFont('Segoe UI', 18, QFont.Bold))
+            title.setStyleSheet('color: #1f2937;')
+            title_layout.addWidget(title)
+            title_layout.addStretch()
+            content_layout.addLayout(title_layout)
+            
+            # 日志显示
+            self.log_text = QTextEdit()
+            self.log_text.setReadOnly(True)
+            self.log_text.setPlaceholderText('日志将显示在这里...')
+            self.log_text.setStyleSheet('''
+                QTextEdit {
+                    background-color: white;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    font-family: 'Consolas', monospace;
+                    font-size: 13px;
+                    padding: 12px;
+                }
+            ''')
+            content_layout.addWidget(self.log_text)
+            
+            # 底部信息
+            status_layout = QHBoxLayout()
+            self.status_label = QLabel('就绪')
+            self.status_label.setFont(QFont('Segoe UI', 11))
+            self.status_label.setStyleSheet('color: #6b7280;')
+            status_layout.addWidget(self.status_label)
+            status_layout.addStretch()
+            content_layout.addLayout(status_layout)
+            
+            # 创建分割器
+            splitter = QSplitter(Qt.Horizontal)
+            splitter.addWidget(self.sidebar)
+            splitter.addWidget(self.main_content)
+            splitter.setSizes([200, 800])
+            splitter.setHandleWidth(4)
+            splitter.setStyleSheet('''
+                QSplitter::handle {
+                    background-color: #e5e7eb;
+                    border-radius: 2px;
+                }
+                QSplitter::handle:hover {
+                    background-color: #d1d5db;
+                }
+            ''')
+            
+            main_layout.addWidget(splitter)
+            
+            # 启动Flask服务器
+            self.flask_thread = FlaskThread()
+            self.flask_thread.start()
+            
+            # 初始刷新日志
+            self.refresh_logs()
+            
+        def refresh_logs(self):
+            logs = read_logs()
+            logs.reverse()
+            self.log_text.clear()
+            for log in logs:
+                if log['level'] == 'ERROR':
+                    self.log_text.append(f"<font color='#dc2626'>[{log['time']}] [{log['level']}] {log['message']}</font>")
+                elif log['level'] == 'INFO':
+                    self.log_text.append(f"<font color='#1e40af'>[{log['time']}] [{log['level']}] {log['message']}</font>")
+                else:
+                    self.log_text.append(f"[{log['time']}] [{log['level']}] {log['message']}")
+            self.status_label.setText(f'显示 {len(logs)} 条日志')
 
 # API接口，接收ESP32发送的日志
 @app.route('/api/logs', methods=['POST'])
@@ -142,99 +302,280 @@ if __name__ == '__main__':
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UPS日志监控</title>
     <style>
+        :root {
+            --primary-color: #0078D4;
+            --secondary-color: #f3f4f6;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --info-color: #3b82f6;
+            --card-bg: #ffffff;
+            --sidebar-bg: #f9fafb;
+        }
+        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Microsoft YaHei', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
+        
         body {
-            background-color: #f5f5f5;
-            color: #333;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
             line-height: 1.6;
         }
+        
         .container {
-            max-width: 800px;
-            margin: 20px auto;
+            max-width: 1200px;
+            margin: 0 auto;
             padding: 20px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        h1 {
-            color: #0078D4;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .log-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
+        
+        .app-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 30px;
         }
+        
+        .app-header h1 {
+            color: var(--text-color);
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .content-layout {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background-color: var(--sidebar-bg);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar-section {
+            margin-bottom: 24px;
+        }
+        
+        .sidebar-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 12px;
+        }
+        
+        .sidebar-info {
+            background-color: var(--card-bg);
+            border-radius: 6px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .info-item {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .info-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            color: var(--text-color);
+        }
+        
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background-color: #005a9e;
+        }
+        
+        .btn:active {
+            background-color: #004578;
+        }
+        
+        .main-content {
+            flex: 1;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+        
+        .log-container {
+            margin-top: 20px;
+        }
+        
+        .log-item {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
         .log-item:last-child {
             border-bottom: none;
         }
+        
         .log-time {
-            font-weight: bold;
-            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+            min-width: 150px;
         }
+        
         .log-level {
-            padding: 2px 8px;
-            border-radius: 12px;
             font-size: 12px;
-            font-weight: bold;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 12px;
+            min-width: 70px;
+            text-align: center;
         }
+        
         .log-level.INFO {
-            background-color: #e6f7ff;
-            color: #1890ff;
+            background-color: #e0f2fe;
+            color: #0284c7;
         }
+        
         .log-level.ERROR {
-            background-color: #fff2f0;
-            color: #ff4d4f;
+            background-color: #fee2e2;
+            color: #dc2626;
         }
+        
+        .log-level.WARNING {
+            background-color: #fef3c7;
+            color: #d97706;
+        }
+        
         .log-message {
             flex: 1;
-            margin: 0 10px;
-        }
-        .empty-log {
-            text-align: center;
-            color: #999;
-            padding: 40px;
-        }
-        .refresh-btn {
-            display: block;
-            margin: 20px auto;
-            padding: 8px 16px;
-            background-color: #0078D4;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
             font-size: 14px;
+            color: var(--text-color);
         }
-        .refresh-btn:hover {
-            background-color: #005a9e;
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        @media (max-width: 768px) {
+            .content-layout {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>UPS系统日志</h1>
-        <button class="refresh-btn" onclick="location.reload()">刷新日志</button>
-        <div id="log-container">
-            {% if logs %}
-                {% for log in logs %}
-                <div class="log-item">
-                    <span class="log-time">{{ log.time }}</span>
-                    <span class="log-level {{ log.level }}">{{ log.level }}</span>
-                    <span class="log-message">{{ log.message }}</span>
+        <div class="app-header">
+            <h1>UPS系统日志监控</h1>
+        </div>
+        
+        <div class="content-layout">
+            <div class="sidebar">
+                <div class="sidebar-section">
+                    <h3>服务器信息</h3>
+                    <div class="sidebar-info">
+                        <div class="info-item">
+                            <span class="info-label">主机:</span>
+                            <span class="info-value">0.0.0.0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">端口:</span>
+                            <span class="info-value">8080</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">访问地址:</span>
+                            <span class="info-value">http://0.0.0.0:8080</span>
+                        </div>
+                    </div>
                 </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-log">暂无日志数据</div>
-            {% endif %}
+                
+                <div class="sidebar-section">
+                    <h3>操作</h3>
+                    <div class="action-buttons">
+                        <button class="btn" onclick="location.reload()">刷新日志</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">系统日志</h2>
+                    </div>
+                    
+                    <div class="log-container">
+                        {% if logs %}
+                            {% for log in logs %}
+                            <div class="log-item">
+                                <span class="log-time">{{ log.time }}</span>
+                                <span class="log-level {{ log.level }}">{{ log.level }}</span>
+                                <span class="log-message">{{ log.message }}</span>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📋</div>
+                                <p>暂无日志数据</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </body>
@@ -244,12 +585,19 @@ if __name__ == '__main__':
     with open('templates/index.html', 'w', encoding='utf-8') as f:
         f.write(html_template)
     
-    # 创建Qt应用
-    qt_app = QApplication(sys.argv)
-    
-    # 创建主窗口
-    window = MainWindow()
-    window.show()
-    
-    # 运行Qt事件循环
-    sys.exit(qt_app.exec_())
+    if HAS_PYQT5:
+        # 创建Qt应用
+        qt_app = QApplication(sys.argv)
+        
+        # 创建主窗口
+        window = MainWindow()
+        window.show()
+        
+        # 运行Qt事件循环
+        sys.exit(qt_app.exec_())
+    else:
+        # 直接运行Flask服务器
+        print('Flask服务器启动中...')
+        print('访问地址: http://0.0.0.0:8080')
+        print('API接口: http://0.0.0.0:8080/api/logs')
+        app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
