@@ -1,19 +1,14 @@
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.4-blue)
-![ESP32](https://img.shields.io/badge/ESP32-S3-green)
-![License](https://img.shields.io/badge/license-MIT-orange)
-![Platform](https://img.shields.io/badge/platform-Arduino-purple)
-![WiFi](https://img.shields.io/badge/WiFi-Enabled-brightgreen)
+[![License](https://img.shields.io/badge/license-MIT-yellow.svg)](https://github.com/wangzhidong2/PDsmartUPS/blob/main/LICENSE)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/wangzhidong2/PDsmartUPS)
+[![Gitee Repository](https://img.shields.io/badge/Gitee-Repository-red?logo=gitee)](https://www.gitee.com/wangzhidong2/PDsmartUPS)
 
 # ⚡ SmartUPS
 
 ### 将充电宝变成智能防断电保护电源
 
 *让每一个支持PD协议的充电宝都能成为路由器的应急守护者*
-
-[![Star](https://img.shields.io/github/stars/wangzhidong2/PD-smartUPS?style=social)](https://github.com/wangzhidong2/PD-smartUPS)
-[![Fork](https://img.shields.io/github/forks/wangzhidong2/PD-smartUPS?style=social)](https://github.com/wangzhidong2/PD-smartUPS)
 
 **当前稳定版本：v1.4** | ESP8266 已停止支持，请使用 ESP32 系列
 
@@ -150,7 +145,8 @@ DC母座+ ──┬──[肖特基二极管]─┬── MOS源极 ── DC公
 
 ## 📧 项目信息
 
-- **项目地址**：[https://github.com/wangzhidong2/PD-smartUPS](https://github.com/wangzhidong2/PD-smartUPS)
+- **GitHub**：[https://github.com/wangzhidong2/PDsmartUPS](https://github.com/wangzhidong2/PDsmartUPS)
+- **Gitee**：[https://www.gitee.com/wangzhidong2/PDsmartUPS](https://www.gitee.com/wangzhidong2/PDsmartUPS)
 - **作者**：wangzhidong2
 - **反馈建议**：wzd123789@hotmail.com（备注smartUPS建议反馈）
 
